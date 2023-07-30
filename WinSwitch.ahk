@@ -4,7 +4,10 @@ global FilterActivePrcs:=0
 global  APrcsName
 global TCMatchPath
 global CurrentHwnd
+global IniConfigFile
+
 TCMatchPath:=A_ScriptDir . "\tcmatch64.dll"
+IniConfigFile:=A_ScriptDir . "\Config.ini"
 
 AllWins:=WinGetListAlt()
 DeActivateAllWins(AllWins)
@@ -50,17 +53,32 @@ F3::
     global  APrcsName
     FilterActivePrcs:=1
     APrcsName:= WinGetProcessName("A")
-
+    CurWinID:=WinGetID("A")
     CtlInput.Value:=""
     WinList:=FilteredWins("",APrcsName)
-    ListWins(WinList)
-    LV.ModifyCol ; Auto-size each column to fit its contents.
-    MyGui.Show("Center")
-    IME_To_EN(CurrentHwnd)
+    if(WinList.Length=1) 
+        return
+    else if(WinList.Length=2)  ;directly switch to the only other window with the same process as current one
+        ActivateTheOtherWin(WinList,CurWinID)
+    else
+    {
+        ListWins(WinList)
+        LV.ModifyCol ; Auto-size each column to fit its contents.
+        MyGui.Show("Center")
+        IME_To_EN(CurrentHwnd)
+    }
 }
 
 Return
 F11::reload
+
+ActivateTheOtherWin(WinList,ThisWinID)
+{
+    if(WinList[1]=ThisWinID)
+        WinActivate("ahk_id " . WinList[2])
+    else
+        WinActivate("ahk_id " . WinList[1])
+}
 DeActivateAllWins(AllWinIDs)
 {
 loop AllWinIDs.Length
@@ -122,30 +140,10 @@ FilteredWins(InputStr,FilterPrcs:="")
 {
     global AllWins
     global LV
+
     if (InputStr="" and FilterPrcs="")
     {
         return AllWins
-    }
-    else if (instr(InputStr,"p ")=1)
-    {
-        prcs:="powerpnt.exe"
-        TitleKw:=SubStr(InputStr, 3)
-        FilteredWins:=FilterByTileAndPrcs(TitleKw,prcs)
-        return FilteredWins
-    }
-    else if (instr(InputStr,"e ")=1)
-    {
-        prcs:="excel.exe"
-        TitleKw:=SubStr(InputStr, 3)
-        FilteredWins:=FilterByTileAndPrcs(TitleKw,prcs)
-        return FilteredWins
-    }
-    else if (instr(InputStr,"f ")=1)
-    {
-        prcs:="explorer.exe"
-        TitleKw:=SubStr(InputStr, 3)
-        FilteredWins:=FilterByTileAndPrcs(TitleKw,prcs)
-        return FilteredWins
     }
     else if (FilterPrcs!="")
     {
@@ -155,9 +153,38 @@ FilteredWins(InputStr,FilterPrcs:="")
     }
     Else
     {
-        FilteredWins:=FilterHwndListByWinTitle(AllWins,InputStr)
+        ; check whether pre-defined key words exist
+        FilteredWins:=FilterByPrcsShortName(InputStr)
+        if(FilteredWins.Length<1)
+        {
+            ; if pre-defined key words do NOT exist, search in Title
+            FilteredWins:=FilterHwndListByWinTitle(AllWins,InputStr)
+        }
         return FilteredWins
     }
+}
+FilterByPrcsShortName(InputStr)
+{
+    global IniConfigFile
+    ; check whether pre-defined key words exist
+    Spliter := IniRead(IniConfigFile, "config","Spliter"," ")
+    KeyList := IniRead(IniConfigFile, "ProcessShortName")
+    KeyListArr := StrSplit(KeyList,"`n","`r")
+    loop KeyListArr.Length
+    {
+        ThisItem:= KeyListArr[A_Index]
+        EqualPos:=InStr(ThisItem,"=")
+        PrcsShortName:=Trim(SubStr(ThisItem,1,EqualPos-1))
+        PrcsFullName:=Trim(SubStr(ThisItem,EqualPos+1))
+        IndexKw:=PrcsShortName . Spliter
+        if (instr(InputStr,IndexKw)=1)
+        {
+            TitleKw:=SubStr(InputStr, 3)
+            FilteredWins:=FilterByTileAndPrcs(TitleKw,PrcsFullName)
+            return FilteredWins
+        }
+    }
+    return []
 }
 
 FilterByTileAndPrcs(InWinTitle,InPrcsName)
