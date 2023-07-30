@@ -13,26 +13,25 @@ MyGui.Opt("-Caption")
 CurrentHwnd := MyGui.Hwnd
 UserInput:=MyGui.AddEdit("w700")
 UserInput.onevent("Change",UserInput_Change)
-LV := MyGui.Add("ListView", "r20 w700 -Multi -Hdr", ["Process","WinTitle","HWND"])
+LVS_SHOWSELALWAYS := 8 ; Seems to have the opposite effect with Explorer theme, at least on Windows 11.
+LV_BGColor:=Format(' Background{:x}', DllCall("GetSysColor", "int", 15, "int"))  ; background color of listview item when get selected by up & down arrow
+LV := MyGui.Add("ListView", "r20 w700 -Multi -Hdr " LVS_SHOWSELALWAYS LV_BGColor, ["Process","WinTitle","HWND"])
 LV.OnEvent("ItemFocus", Preview)
 LV.OnEvent("Click", Preview)
-; if(MyGui.hwnd)
-; OnMessage(WM_ACTIVATE := 0x6, (wp, lp, msg, hwnd) => hwnd = MyGui.hwnd && !wp && MyGui.Hide())
 OnMessage(WM_ACTIVATE := 0x0006, LoseFocus2Close)
 
 OnMessage(WM_KEYDOWN := 0x100, KeyDown)
 
-LoseFocus2Close(wParam, lParam, nmsg, CurrentHwnd)
+LoseFocus2Close(wParam, lParam, nmsg, hwnd)
 {
-; (wp, lp, msg, hwnd) => hwnd = MyGui.hwnd && !wp && MyGui.Hide()
-; msgbox wParam
-    if( CurrentHwnd && !wParam)
+    if( hwnd && !wParam)
     {
-        msgbox CurrentHwnd  " d " wParam
-        WinClose("ahk_id " . CurrentHwnd)
+        try
+        {
+            WinClose("ahk_id " . hwnd)
+        }
     }
     return true
-
 }
 
 F1::
@@ -71,7 +70,10 @@ ImmGetDefaultIMEWnd(hWnd)
 {
     return DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",hWnd, "Uint")
 }
-
+UserInput_Change(*)
+{
+    FilteredWins()
+}
 ListWins(ListW)
 {
     global LV
@@ -84,24 +86,17 @@ ListWins(ListW)
     loop WinNum
     {
         WinHwnd:=ListW[A_Index]
-        PrcsPath := WinGetProcessPath("ahk_id " . WinHwnd)
-        PrcsName:=WinGetProcessName("ahk_id " . WinHwnd)
-        WinTitle:=WinGetTitle("ahk_id " . WinHwnd)
+        try
+        {
+            PrcsPath := WinGetProcessPath("ahk_id " . WinHwnd)
+            PrcsName:=WinGetProcessName("ahk_id " . WinHwnd)
+            WinTitle:=WinGetTitle("ahk_id " . WinHwnd)
 
-        IL_Add(ImageListID, PrcsPath, 1) 
-        LV.Add("Icon" . A_Index, PrcsName, WinTitle,WinHwnd)
+            IL_Add(ImageListID, PrcsPath, 1) 
+            LV.Add("Icon" . A_Index, PrcsName, WinTitle,WinHwnd)
+        }
 
     }
-    ; loop WinNum
-    ; {
-
-    ;     WinHwnd:=ListW[A_Index]
-    ;     PrcsName:=WinGetProcessName("ahk_id " . WinHwnd)
-    ;     PrcsPath := WinGetProcessPath("ahk_id " . WinHwnd)
-    ;     WinTitle:=WinGetTitle("ahk_id " . WinHwnd)
-
-    ;     LV.Add("Icon" . A_Index, PrcsName, WinTitle,WinHwnd)
-    ; }
     LV.Modify("1", "Select Focus")
 }
 
@@ -205,14 +200,27 @@ Preview(LV, RowNumber)
 {
     global CurrentHwnd
     WinHwnd := LV.GetText(RowNumber,3)  ; Get the text from the row's first field.
-    WinActivate("ahk_id " . WinHwnd)
-    WinActivate("ahk_id " . CurrentHwnd)
-}
-UserInput_Change(*)
-{
-    FilteredWins()
+    WinShowBelow(WinHwnd,CurrentHwnd)
+    ; WinActivate("ahk_id " . WinHwnd)
+    ; WinActivate("ahk_id " . CurrentHwnd)
 }
 
+WinShowBelow(hWnd, hWndInsertAfter)
+{
+    Local  SWP_NOACTIVATE := 0x10
+        ,  SWP_NOMOVE     := 0x2
+        ,  SWP_NOSIZE     := 0x1
+
+    DllCall( "User32\SetWindowPos"
+           , "ptr",  hWnd
+           , "ptr",  hWndInsertAfter
+           , "int",  0
+           , "int",  0
+           , "int",  0
+           , "int",  0
+           , "uint", SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
+           )
+}
 TCMatch(aHaystack, aNeedle)
 {
     if (A_PtrSize == 8)
@@ -222,14 +230,14 @@ TCMatch(aHaystack, aNeedle)
 
     return DllCall("TCMatch\MatchFileW", "WStr", aNeedle, "WStr", aHaystack)
 }
-KeyDown(wParam, lParam, nmsg, CurrentHwnd) {
+KeyDown(wParam, lParam, nmsg, Hwnd) {
     global LV
     static VK_UP := 0x26
     static VK_DOWN := 0x28
     static VK_Enter := 0x0D
     static VK_ESC:=0x1B
     ; msgbox wParam
-    gc := GuiCtrlFromHwnd(CurrentHwnd)
+    gc := GuiCtrlFromHwnd(Hwnd)
     if !(wParam = VK_UP || wParam = VK_DOWN || wParam=VK_Enter || wParam=VK_ESC)
         return
     if  gc is Gui.Edit 
