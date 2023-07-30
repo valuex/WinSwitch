@@ -8,6 +8,7 @@ global IniConfigFile
 
 TCMatchPath:=A_ScriptDir . "\tcmatch64.dll"
 IniConfigFile:=A_ScriptDir . "\Config.ini"
+TraySetIcon  "WinSwitch.png"  
 
 AllWins:=WinGetListAlt()
 DeActivateAllWins(AllWins)
