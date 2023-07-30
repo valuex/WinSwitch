@@ -1,18 +1,20 @@
 global AllWins
 global LV
-global InputStr
+global FilterActivePrcs:=0
+global  APrcsName
 global TCMatchPath
 global CurrentHwnd
 TCMatchPath:=A_ScriptDir . "\tcmatch64.dll"
 
-
 AllWins:=WinGetListAlt()
+DeActivateAllWins(AllWins)
+
 MyGui := Gui("+AlwaysOnTop")
 MyGui.SetFont("s14", "Verdana")
 MyGui.Opt("-Caption")
 CurrentHwnd := MyGui.Hwnd
-UserInput:=MyGui.AddEdit("w700")
-UserInput.onevent("Change",UserInput_Change)
+CtlInput:=MyGui.AddEdit("w700")
+CtlInput.OnEvent("Change",UserInput_Change)
 LVS_SHOWSELALWAYS := 8 ; Seems to have the opposite effect with Explorer theme, at least on Windows 11.
 LV_BGColor:=Format(' Background{:x}', DllCall("GetSysColor", "int", 15, "int"))  ; background color of listview item when get selected by up & down arrow
 LV := MyGui.Add("ListView", "r20 w700 -Multi -Hdr " LVS_SHOWSELALWAYS LV_BGColor, ["Process","WinTitle","HWND"])
@@ -36,43 +38,59 @@ LoseFocus2Close(wParam, lParam, nmsg, hwnd)
 
 F1::
 {
-    UserInput.Value:=""
+    CtlInput.Value:=""
     ListWins(AllWins)
     LV.ModifyCol ; Auto-size each column to fit its contents.
     MyGui.Show("Center")
-    ret := IME_CHECK("A")
-    if (ret !=0)                  ; 0 :English
-    {
-        Send "{Shift}" 
-    }
+    IME_To_EN(CurrentHwnd)
 }
+F3::
+{
+    global FilterActivePrcs 
+    global  APrcsName
+    FilterActivePrcs:=1
+    APrcsName:= WinGetProcessName("A")
 
+    CtlInput.Value:=""
+    WinList:=FilteredWins("",APrcsName)
+    ListWins(WinList)
+    LV.ModifyCol ; Auto-size each column to fit its contents.
+    MyGui.Show("Center")
+    IME_To_EN(CurrentHwnd)
+}
 
 Return
 F11::reload
-
-IME_CHECK(WinTitle)
+DeActivateAllWins(AllWinIDs)
 {
-    hWnd := WinGetID(WinTitle)
-    Return Send_ImeControl(ImmGetDefaultIMEWnd(hWnd),0x005,"")
+loop AllWinIDs.Length
+    {
+        win_id:= "ahk_id " . AllWinIDs[A_Index]
+        WinSetAlwaysOnTop 0, win_id
+        ; if WinActive(win_id)
+        ;     msgbox WinGetProcessName(win_id)
+    }
 }
-Send_ImeControl(DefaultIMEWnd, wParam, lParam)
-{
-    DetectSave := A_DetectHiddenWindows       
-    DetectHiddenWindows 1                            
-    Result :=SendMessage( 0x283, wParam,lParam,,"ahk_id " . DefaultIMEWnd)
-    if (DetectSave != A_DetectHiddenWindows)
-        DetectHiddenWindows DetectSave
-    return Result
-}
- 
-ImmGetDefaultIMEWnd(hWnd)
-{
-    return DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",hWnd, "Uint")
+IME_To_EN(hwnd)
+{    
+    ; https://github.com/hui-Zz/RunAny/blob/master/RunPlugins/huiZz_InputEnCn.ahk
+    dd:=DllCall("imm32\ImmGetDefaultIMEWnd","Uint",hwnd)
+    DllCall("SendMessage","UInt",dd,"UInt",0x0283,"Int",0x002,"Int",0x00)
 }
 UserInput_Change(*)
 {
-    FilteredWins()
+    global CtlInput
+    global FilterActivePrcs
+    global APrcsName
+    InputStr:=CtlInput.Value
+
+    if(FilterActivePrcs)
+    {
+        WinList:=FilteredWins(InputStr,APrcsName)
+    }
+    else
+        WinList:=FilteredWins(InputStr)
+    ListWins(WinList)
 }
 ListWins(ListW)
 {
@@ -100,52 +118,57 @@ ListWins(ListW)
     LV.Modify("1", "Select Focus")
 }
 
-FilteredWins()
+FilteredWins(InputStr,FilterPrcs:="")
 {
     global AllWins
     global LV
-    global InputStr
-    global UserInput
-    InputStr:=UserInput.Value
-    if (InputStr="")
+    if (InputStr="" and FilterPrcs="")
     {
-        ListWins(AllWins) 
+        return AllWins
     }
     else if (instr(InputStr,"p ")=1)
     {
         prcs:="powerpnt.exe"
         TitleKw:=SubStr(InputStr, 3)
-        FilteredWins:=FilterByPrcsAndTitle(prcs,TitleKw)
-        ListWins(FilteredWins)
+        FilteredWins:=FilterByTileAndPrcs(TitleKw,prcs)
+        return FilteredWins
     }
     else if (instr(InputStr,"e ")=1)
     {
         prcs:="excel.exe"
         TitleKw:=SubStr(InputStr, 3)
-        FilteredWins:=FilterByPrcsAndTitle(prcs,TitleKw)
-        ListWins(FilteredWins)
+        FilteredWins:=FilterByTileAndPrcs(TitleKw,prcs)
+        return FilteredWins
     }
     else if (instr(InputStr,"f ")=1)
     {
         prcs:="explorer.exe"
         TitleKw:=SubStr(InputStr, 3)
-        FilteredWins:=FilterByPrcsAndTitle(prcs,TitleKw)
-        ListWins(FilteredWins)
+        FilteredWins:=FilterByTileAndPrcs(TitleKw,prcs)
+        return FilteredWins
+    }
+    else if (FilterPrcs!="")
+    {
+        TitleKw:=InputStr
+        FilteredWins:=FilterByTileAndPrcs(TitleKw,FilterPrcs)
+        return FilteredWins
     }
     Else
     {
         FilteredWins:=FilterHwndListByWinTitle(AllWins,InputStr)
-        ListWins(FilteredWins)
+        return FilteredWins
     }
 }
 
-FilterByPrcsAndTitle(InPrcsName,InWinTitle)
+FilterByTileAndPrcs(InWinTitle,InPrcsName)
 {
-FilteredPrcsWins:=FilterHwndListByPrcsName(InPrcsName)
-FilteredTitleWins:=FilterHwndListByWinTitle(FilteredPrcsWins,InWinTitle)
-Return FilteredTitleWins
-
-
+    FilteredPrcsWins:=FilterHwndListByPrcsName(InPrcsName)
+    if(InWinTitle!="")
+    {
+        FilteredTitleWins:=FilterHwndListByWinTitle(FilteredPrcsWins,InWinTitle)
+        Return FilteredTitleWins
+    }
+    Return FilteredPrcsWins
 }
 
 FilterHwndListByPrcsName(InPrcsName)
@@ -165,6 +188,7 @@ FilterHwndListByPrcsName(InPrcsName)
 }
 FilterHwndListByWinTitle(WinList,InWinTitle)
 {
+    ; filter title by Pinyin first letters
     global AllWins
     global TCMatchPath
     WinNum:=WinList.Length
@@ -185,7 +209,15 @@ FilterHwndListByWinTitle(WinList,InWinTitle)
     g_TCMatchModule := ""
     Return List
 }
+TCMatch(aHaystack, aNeedle)
+{
+    if (A_PtrSize == 8)
+    {
+        return DllCall("TCMatch64\MatchFileW", "WStr", aNeedle, "WStr", aHaystack)
+    }
 
+    return DllCall("TCMatch\MatchFileW", "WStr", aNeedle, "WStr", aHaystack)
+}
 
 LV_Click(LV, RowNumber)
 {
@@ -207,6 +239,7 @@ Preview(LV, RowNumber)
 
 WinShowBelow(hWnd, hWndInsertAfter)
 {
+    ; https://www.autohotkey.com/boards/viewtopic.php?f=82&t=119842
     Local  SWP_NOACTIVATE := 0x10
         ,  SWP_NOMOVE     := 0x2
         ,  SWP_NOSIZE     := 0x1
@@ -221,15 +254,7 @@ WinShowBelow(hWnd, hWndInsertAfter)
            , "uint", SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
            )
 }
-TCMatch(aHaystack, aNeedle)
-{
-    if (A_PtrSize == 8)
-    {
-        return DllCall("TCMatch64\MatchFileW", "WStr", aNeedle, "WStr", aHaystack)
-    }
 
-    return DllCall("TCMatch\MatchFileW", "WStr", aNeedle, "WStr", aHaystack)
-}
 KeyDown(wParam, lParam, nmsg, Hwnd) {
     global LV
     static VK_UP := 0x26
