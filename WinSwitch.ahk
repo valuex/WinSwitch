@@ -18,7 +18,7 @@ LV_BGColor:=Format(' Background{:x}', DllCall("GetSysColor", "int", 15, "int")) 
 LV := MyGui.Add("ListView", "r20 w700 -Multi -Hdr " LVS_SHOWSELALWAYS LV_BGColor, ["Process","WinTitle","HWND"])
 LV.OnEvent("ItemFocus", Preview)
 LV.OnEvent("Click", Preview)
-OnMessage(WM_ACTIVATE := 0x0006, LoseFocus2Close)
+; OnMessage(WM_ACTIVATE := 0x0006, LoseFocus2Close)
 
 OnMessage(WM_KEYDOWN := 0x100, KeyDown)
 
