@@ -225,13 +225,16 @@ FilterHwndListByWinTitle(WinList,InWinTitle)
 
     loop WinNum
     {
-        WinHwnd:=WinList[A_Index]
-        ThisWinTitle:=WinGetTitle("ahk_id " . WinHwnd)
-        TCMatched:=TCMatch(ThisWinTitle,InWinTitle)
-        if(TCMatched)
+        try
         {
-            List.Push(WinHwnd)            
-        }          
+            WinHwnd:=WinList[A_Index]
+            ThisWinTitle:=WinGetTitle("ahk_id " . WinHwnd)
+            TCMatched:=TCMatch(ThisWinTitle,InWinTitle)
+            if(TCMatched)
+            {
+                List.Push(WinHwnd)            
+            }   
+        }       
     }
     DllCall("FreeLibrary", "Ptr", g_TCMatchModule)  ; free memory
     g_TCMatchModule := ""
