@@ -25,7 +25,7 @@ w  xx is to search Word with the title of xx
 p  xx is to search Powerpnt with the title of xx
 f  xx is to search Explorer with the title of xx
 ```
-the above mentioned abbreviation is predefined in the program  
+
 4. Switch among current process windows. 
  - When the process has only one window, nothing will happen when press the HotKey .
  - When the process has only two windows, directly switch to the other one when press the HotKey .
