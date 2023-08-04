@@ -1,7 +1,7 @@
 global AllWins
 global LV
 global FilterActivePrcs:=0
-global  APrcsName
+global APrcsName
 global TCMatchPath
 global CurrentHwnd
 global IniConfigFile
@@ -12,7 +12,8 @@ IniConfigFile:=A_ScriptDir . "\Config.ini"
 TraySetIcon  "WinSwitch.png"  
 
 AllWins:=WinGetListAlt()
-DeActivateAllWins(AllWins)
+; in case that some window is set topmost, do un-topmost first
+UnTopMostAllWins(AllWins)
 
 MyGui := Gui("+AlwaysOnTop")
 MyGui.SetFont("s14", "Verdana")
@@ -70,7 +71,7 @@ ActivateTheOtherWin(WinList,ThisWinID)
     else
         WinActivate("ahk_id " . WinList[1])
 }
-DeActivateAllWins(AllWinIDs)
+UnTopMostAllWins(AllWinIDs)
 {
 loop AllWinIDs.Length
     {
@@ -282,7 +283,6 @@ WinShowBelow(hWnd, hWndInsertAfter)
     Local  SWP_NOACTIVATE := 0x10
         ,  SWP_NOMOVE     := 0x2
         ,  SWP_NOSIZE     := 0x1
-    FileAppend(hWnd . "`t" . hWndInsertAfter . "`n", "log.txt")
     DllCall( "User32\SetWindowPos"
            , "ptr",  hWnd
            , "ptr",  hWndInsertAfter
@@ -292,8 +292,6 @@ WinShowBelow(hWnd, hWndInsertAfter)
            , "int",  0
            , "uint", SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
            )
-    ; if( WinGetMinMax("ahk_id" . hWnd)=-1)
-    ;     WinRestore("ahk_id" . hWnd)
 }
 KeyDown(wParam, lParam, nmsg, Hwnd) {
     global LV
