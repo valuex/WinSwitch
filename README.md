@@ -30,6 +30,7 @@ the above mentioned abbreviation is predefined in the program
  - When the process has only one window, nothing will happen when press the HotKey .
  - When the process has only two windows, directly switch to the other one when press the HotKey .
 5. Close the main window automatically when lose focus
+6. Can preview the window when selecting item using UP or DOWN  in the listview.
 # Todo
 1. Auto switch IME to English mode when the the window pops-up [done, but not work perfectly, help needed]
 2. Close selected window  

@@ -5,6 +5,7 @@ global  APrcsName
 global TCMatchPath
 global CurrentHwnd
 global IniConfigFile
+global IsInPreviewStatus:=0
 
 TCMatchPath:=A_ScriptDir . "\tcmatch64.dll"
 IniConfigFile:=A_ScriptDir . "\Config.ini"
@@ -24,21 +25,10 @@ LV_BGColor:=Format(' Background{:x}', DllCall("GetSysColor", "int", 15, "int")) 
 LV := MyGui.Add("ListView", "r20 w700 -Multi -Hdr " LVS_SHOWSELALWAYS LV_BGColor, ["Process","WinTitle","HWND"])
 LV.OnEvent("ItemFocus", Preview)
 LV.OnEvent("Click", Preview)
-; OnMessage(WM_ACTIVATE := 0x0006, LoseFocus2Close)
+OnMessage(WM_ACTIVATE := 0x0006, LoseFocus2Close)
 
 OnMessage(WM_KEYDOWN := 0x100, KeyDown)
 
-LoseFocus2Close(wParam, lParam, nmsg, hwnd)
-{
-    if( hwnd && !wParam)
-    {
-        try
-        {
-            WinClose("ahk_id " . hwnd)
-        }
-    }
-    return true
-}
 
 F1::
 {
@@ -110,6 +100,8 @@ UserInput_Change(*)
     else
         WinList:=FilteredWins(InputStr)
     ListWins(WinList)
+    ; Preview(LV, "1")
+
 }
 ListWins(ListW)
 {
@@ -262,19 +254,35 @@ LV_ItemFocus(LV, RowNumber)
 Preview(LV, RowNumber)
 {
     global CurrentHwnd
+    global IsInPreviewStatus
     WinHwnd := LV.GetText(RowNumber,3)  ; Get the text from the row's first field.
-    WinShowBelow(WinHwnd,CurrentHwnd)
-    ; WinActivate("ahk_id " . WinHwnd)
-    ; WinActivate("ahk_id " . CurrentHwnd)
+    IsInPreviewStatus:=1
+    WinActivate("ahk_id " . WinHwnd)
+    WinActivate("ahk_id " . CurrentHwnd)
+    IsInPreviewStatus:=0
+    ; WinShowBelow(WinHwnd, CurrentHwnd)
 }
-
+LoseFocus2Close(wParam, lParam, nmsg, hwnd)
+{
+    if (IsInPreviewStatus=1)
+        return false
+    if( hwnd && !wParam)
+    {
+        try
+        {
+            WinClose("ahk_id " . hwnd)
+        }
+    }
+    return true
+}
 WinShowBelow(hWnd, hWndInsertAfter)
 {
     ; https://www.autohotkey.com/boards/viewtopic.php?f=82&t=119842
+    ; cons: not good enough for minimized window
     Local  SWP_NOACTIVATE := 0x10
         ,  SWP_NOMOVE     := 0x2
         ,  SWP_NOSIZE     := 0x1
-
+    FileAppend(hWnd . "`t" . hWndInsertAfter . "`n", "log.txt")
     DllCall( "User32\SetWindowPos"
            , "ptr",  hWnd
            , "ptr",  hWndInsertAfter
@@ -284,22 +292,29 @@ WinShowBelow(hWnd, hWndInsertAfter)
            , "int",  0
            , "uint", SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
            )
+    ; if( WinGetMinMax("ahk_id" . hWnd)=-1)
+    ;     WinRestore("ahk_id" . hWnd)
 }
-
 KeyDown(wParam, lParam, nmsg, Hwnd) {
     global LV
     static VK_UP := 0x26
     static VK_DOWN := 0x28
     static VK_Enter := 0x0D
     static VK_ESC:=0x1B
-    ; msgbox wParam
     gc := GuiCtrlFromHwnd(Hwnd)
     if !(wParam = VK_UP || wParam = VK_DOWN || wParam=VK_Enter || wParam=VK_ESC)
         return
     if  gc is Gui.Edit 
     {
         ; press up & down in Eidt control to select item in listview
-        PostMessage nmsg, wParam, lParam, LV
+        CurRowNumber := LV.GetNext()  ;get current selected row number
+        LastRowNumber := LV.GetCount()
+        if(CurRowNumber=1 and wParam = VK_UP)
+            LV.Modify(LastRowNumber, "Select Focus")
+        else if (CurRowNumber=LastRowNumber and wParam = VK_DOWN)
+            LV.Modify("1", "Select Focus")
+        else
+            PostMessage nmsg, wParam, lParam, LV
         return true
     }
     else if (wParam=VK_ESC)
