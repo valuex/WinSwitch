@@ -1,3 +1,4 @@
+Persistent
 global AllWins
 global LV
 global FilterActivePrcs:=0
@@ -6,6 +7,7 @@ global TCMatchPath
 global CurrentHwnd
 global IniConfigFile
 global IsInPreviewStatus:=0
+global ImageListID
 
 TCMatchPath:=A_ScriptDir . "\tcmatch64.dll"
 IniConfigFile:=A_ScriptDir . "\Config.ini"
@@ -14,8 +16,8 @@ TraySetIcon  "WinSwitch.png"
 AllWins:=WinGetListAlt()
 ; in case that some window is set topmost, do un-topmost first
 UnTopMostAllWins(AllWins)
-
-MyGui := Gui("+AlwaysOnTop")
+; +ToolWindow: no taskbar icon, so that when close one window use Ctrl+w, this window will not be listed
+MyGui := Gui("+AlwaysOnTop +ToolWindow")
 MyGui.SetFont("s14", "Verdana")
 MyGui.Opt("-Caption")
 CurrentHwnd := MyGui.Hwnd
@@ -33,6 +35,7 @@ OnMessage(WM_KEYDOWN := 0x100, KeyDown)
 
 F1::
 {
+    AllWins:=WinGetListAlt()
     CtlInput.Value:=""
     ListWins(AllWins)
     LV.ModifyCol ; Auto-size each column to fit its contents.
@@ -107,9 +110,13 @@ UserInput_Change(*)
 ListWins(ListW)
 {
     global LV
+    global ImageListID
     CountNumber := LV.GetCount()
     if (CountNumber>=1)
+    {
         LV.Delete
+        Success := IL_Destroy(ImageListID)
+    }
     WinNum:=ListW.Length
     ImageListID := IL_Create(WinNum) 
     LV.SetImageList(ImageListID)
@@ -121,7 +128,7 @@ ListWins(ListW)
             PrcsPath := WinGetProcessPath("ahk_id " . WinHwnd)
             PrcsName:=WinGetProcessName("ahk_id " . WinHwnd)
             WinTitle:=WinGetTitle("ahk_id " . WinHwnd)
-
+            
             IL_Add(ImageListID, PrcsPath, 1) 
             LV.Add("Icon" . A_Index, PrcsName, WinTitle,WinHwnd)
         }
@@ -271,7 +278,9 @@ LoseFocus2Close(wParam, lParam, nmsg, hwnd)
     {
         try
         {
-            WinClose("ahk_id " . hwnd)
+            WinHide ("ahk_id " . hwnd)
+            ; FileAppend( .  hwnd . "`n", "log.txt")
+
         }
     }
     return true
@@ -294,15 +303,19 @@ WinShowBelow(hWnd, hWndInsertAfter)
            )
 }
 KeyDown(wParam, lParam, nmsg, Hwnd) {
+    global CurrentHwnd
     global LV
     static VK_UP := 0x26
     static VK_DOWN := 0x28
     static VK_Enter := 0x0D
     static VK_ESC:=0x1B
+    static VK_Ctrl:=0x11
+    static VK_W:=0x57
+    static VK_CtrlW:=0x1157
     gc := GuiCtrlFromHwnd(Hwnd)
-    if !(wParam = VK_UP || wParam = VK_DOWN || wParam=VK_Enter || wParam=VK_ESC)
+    if !(wParam = VK_UP || wParam = VK_DOWN || wParam=VK_Enter || wParam=VK_ESC || wParam=VK_W) ;|| wParam=VK_Ctrl|| wParam=VK_W
         return
-    if  gc is Gui.Edit 
+    if  (gc is Gui.Edit and (wParam = VK_UP || wParam = VK_DOWN ))
     {
         ; press up & down in Eidt control to select item in listview
         CurRowNumber := LV.GetNext()  ;get current selected row number
@@ -317,7 +330,15 @@ KeyDown(wParam, lParam, nmsg, Hwnd) {
     }
     else if (wParam=VK_ESC)
     {
-        WinClose()
+        WinClose("ahk_id " . CurrentHwnd)
+    }
+    else if (wParam=VK_W and GetKeyState("Ctrl"))
+    {
+            CurRowNumber := LV.GetNext()  ;get current selected row number
+            WinHwnd := LV.GetText(CurRowNumber,3)
+            WinClose("ahk_id " . WinHwnd) 
+            AllWins:=WinGetListAlt()
+            ListWins(AllWins)
     }
     else if ( gc is Gui.ListView and  wParam=VK_Enter )
     {

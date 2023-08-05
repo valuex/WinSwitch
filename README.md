@@ -10,7 +10,7 @@ Switch among current process windows            | `F3`     | This shortcut can b
 _When WinSwitch is open_      |                 |
 Preview the selected window      | `UP` or `DOWN`         | use UP or DOWN to select the item, and the window will be bring to 2nd top-most accordingly.
 Switch to selected window      | `Enter`         |
-Close selected window          | `Ctrl + W`      | todo
+Close selected window          | `Ctrl + W`      | 
 Dismiss WinSwitch             | `Esc`           |
 Define short name of process             |           | This can be set in the `Config.ini`
 
@@ -32,5 +32,4 @@ f  xx is to search Explorer with the title of xx
 5. Close the main window automatically when lose focus
 6. Can preview the window when selecting item using UP or DOWN  in the listview.
 # Todo
-1. Auto switch IME to English mode when the the window pops-up [done, but not work perfectly, help needed]
-2. Close selected window  
+1. Force switch IME to English mode when the the window pops-up [done, but not work perfectly, help needed]
