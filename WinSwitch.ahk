@@ -8,6 +8,7 @@ global CurrentHwnd
 global IniConfigFile
 global IsInPreviewStatus:=0
 global ImageListID
+global CtlInput
 
 TCMatchPath:=A_ScriptDir . "\tcmatch64.dll"
 IniConfigFile:=A_ScriptDir . "\Config.ini"
@@ -79,7 +80,8 @@ UnTopMostAllWins(AllWinIDs)
 loop AllWinIDs.Length
     {
         win_id:= "ahk_id " . AllWinIDs[A_Index]
-        WinSetAlwaysOnTop 0, win_id
+        try
+            WinSetAlwaysOnTop 0, win_id
         ; if WinActive(win_id)
         ;     msgbox WinGetProcessName(win_id)
     }
@@ -104,7 +106,6 @@ UserInput_Change(*)
     else
         WinList:=FilteredWins(InputStr)
     ListWins(WinList)
-    ; Preview(LV, "1")
 
 }
 ListWins(ListW)
@@ -206,6 +207,7 @@ FilterHwndListByPrcsName(InPrcsName)
     loop WinNum
     {
         WinHwnd:=AllWins[A_Index]
+        ; MsgBox(WinHwnd)
         ThisPrcsName:=WinGetProcessName("ahk_id " . WinHwnd)
         if(InStr(ThisPrcsName, InPrcsName))
         {
@@ -263,12 +265,82 @@ Preview(LV, RowNumber)
 {
     global CurrentHwnd
     global IsInPreviewStatus
+    global CtlInput
     WinHwnd := LV.GetText(RowNumber,3)  ; Get the text from the row's first field.
     IsInPreviewStatus:=1
-    WinActivate("ahk_id " . WinHwnd)
-    WinActivate("ahk_id " . CurrentHwnd)
+    BringToBelow(WinHwnd, CurrentHwnd)
+    ; WinActivate("ahk_id " . WinHwnd)
+    ; WinActivate("ahk_id " . CurrentHwnd)
     IsInPreviewStatus:=0
-    ; WinShowBelow(WinHwnd, CurrentHwnd)
+    CtlInput.Focus()    
+}
+BringToBelow(hWnd,mainHwnd)
+{
+    try {
+        ; Convert string hwnd to integer
+        targetHwnd := Integer(hwnd)
+        ; Check if target window is minimized and restore it
+        if (WinGetMinMax("ahk_id " hwnd) = -1) {
+            WinRestore("ahk_id " hwnd)
+            Sleep(100) ; Give time for restore animation
+        }
+
+        ; Make sure target window is visible
+        DllCall("ShowWindow", "Ptr", targetHwnd, "Int", 5) ; SW_SHOW = 5
+
+        ; Use SetWindowPos to insert the target window just below our main window
+        HWND_NOTOPMOST := -2
+        HWND_TOP := 0
+        SWP_NOMOVE := 0x0002
+        SWP_NOSIZE := 0x0001
+        SWP_NOACTIVATE := 0x0010
+        SWP_SHOWWINDOW := 0x0040
+
+        ; For stubborn system windows, try multiple approaches
+
+        ; Method 1: Standard positioning below main window
+        DllCall("SetWindowPos", "Ptr", targetHwnd, "Ptr", HWND_NOTOPMOST,
+            "Int", 0, "Int", 0, "Int", 0, "Int", 0,
+            "UInt", SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+
+        DllCall("SetWindowPos", "Ptr", targetHwnd, "Ptr", mainHwnd,
+            "Int", 0, "Int", 0, "Int", 0, "Int", 0,
+            "UInt", SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW)
+
+        ; Method 2: For stubborn windows, try BringWindowToTop first
+        ; Check if window class indicates a system dialog
+        className := ""
+        try {
+            className := WinGetClass("ahk_id " hwnd)
+        } catch {
+        }
+
+        ; System dialogs often have these class names
+        if (InStr(className, "#32770") || InStr(className, "Dialog") ||
+            InStr(className, "Static") || InStr(className, "SysListView32")) {
+
+            ; For system dialogs, use more aggressive approach
+            DllCall("BringWindowToTop", "Ptr", targetHwnd)
+            Sleep(50)
+
+            ; Try SetForegroundWindow but immediately take back control
+            DllCall("SetForegroundWindow", "Ptr", targetHwnd)
+            Sleep(50)
+
+            ; Force our window back to front
+            DllCall("SetForegroundWindow", "Ptr", mainHwnd)
+        }
+
+        ; Ensure focus stays on search box
+        ; this.searchBox.Focus()
+    } catch Error as e {
+        ; Fallback: restore main window state and focus
+        try {
+            WinSetAlwaysOnTop(true, "ahk_id " mainHwnd)
+        } catch {
+        }
+        ; this.searchBox.Focus()
+    }
 }
 LoseFocus2Close(wParam, lParam, nmsg, hwnd)
 {
@@ -284,23 +356,6 @@ LoseFocus2Close(wParam, lParam, nmsg, hwnd)
         }
     }
     return true
-}
-WinShowBelow(hWnd, hWndInsertAfter)
-{
-    ; https://www.autohotkey.com/boards/viewtopic.php?f=82&t=119842
-    ; cons: not good enough for minimized window
-    Local  SWP_NOACTIVATE := 0x10
-        ,  SWP_NOMOVE     := 0x2
-        ,  SWP_NOSIZE     := 0x1
-    DllCall( "User32\SetWindowPos"
-           , "ptr",  hWnd
-           , "ptr",  hWndInsertAfter
-           , "int",  0
-           , "int",  0
-           , "int",  0
-           , "int",  0
-           , "uint", SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
-           )
 }
 KeyDown(wParam, lParam, nmsg, Hwnd) {
     global CurrentHwnd
